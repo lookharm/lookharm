@@ -1,6 +1,6 @@
 # Table of contents
 
-* [🏴☠ 🏴☠ Lookharm](README.md)
+* [🏴☠ 🏴☠ 🏴☠ Lookharm](README.md)
 * [BLOG](blog/README.md)
   * [Go: sync/mutex implementation](blog/go-sync-mutex-implementation.md)
 
