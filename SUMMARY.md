@@ -1,7 +1,7 @@
 # Table of contents
 
-* [🏴☠ 🏴☠ 🏴☠ Lookharm](README.md)
-* [BLOG](blog/README.md)
+* [🏴☠ Lookharm](README.md)
+* [Go](blog/README.md)
   * [Go: The evolution of sync/mutex [Part 1]](./blog/go-the-evolution-of-sync-mutex-part-1.md)
 
 ## Note
