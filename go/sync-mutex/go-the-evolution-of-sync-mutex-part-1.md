@@ -152,7 +152,7 @@ func (m *Mutex) unlockSlow(new int32) {
 
 ***
 
-## add mutex.Mutex (bf3dd3f0efe5b45947a991e22660c62d4ce6b671)
+## add mutex.Mutex (bf3d)
 ```
 commit bf3dd3f0efe5b45947a991e22660c62d4ce6b671
 Author: Russ Cox <rsc@golang.org>
