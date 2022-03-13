@@ -1,0 +1,436 @@
+# Go: The evolution of sync/mutex [Part 1]
+
+ℹ️ This article is based on Go 1.17.
+
+Mutex.Lock() และ Mutex.Unlock() การใช้งานที่เรียบง่าย\
+แต่ลองส่องดู source code ใน sync/mutex ของ Go1.17 [1] ก็จะเห็นรายละเอียดที่ค่อนข้างมาก ประมาณ 135 บรรทัด [2] (ไม่รวม comment) \
+บทความนี้มาลองทำความเข้าใจ Mutex ใน Go\
+แต่หากจะเริ่มต้นที่ Go1.17 ในปี 2022 นี้ดูแล้วจะยากไป\
+ขอย้อนเวลากลับไปเมื่อประมาณ 14 ปีที่แล้วก่อนที่ Go1 จะ release
+
+***
+
+source code: sync/mutex (Go1.17)
+
+```go
+package sync
+
+import (
+	"internal/race"
+	"sync/atomic"
+	"unsafe"
+)
+
+type Mutex struct {
+	state int32
+	sema  uint32
+}
+
+type Locker interface {
+	Lock()
+	Unlock()
+}
+
+const (
+	mutexWoken
+	mutexStarving
+	mutexWaiterShift = iota
+
+	starvationThresholdNs = 1e6
+)
+
+func (m *Mutex) Lock() {
+	if atomic.CompareAndSwapInt32(&m.state, 0, mutexLocked) {
+		if race.Enabled {
+			race.Acquire(unsafe.Pointer(m))
+		}
+		return
+	}
+	m.lockSlow()
+}
+
+func (m *Mutex) lockSlow() {
+	var waitStartTime int64
+	starving := false
+	awoke := false
+	iter := 0
+	old := m.state
+	for {
+		if old&(mutexLocked|mutexStarving) == mutexLocked && runtime_canSpin(iter) {
+			if !awoke && old&mutexWoken == 0 && old>>mutexWaiterShift != 0 &&
+				atomic.CompareAndSwapInt32(&m.state, old, old|mutexWoken) {
+				awoke = true
+			}
+			runtime_doSpin()
+			iter++
+			old = m.state
+			continue
+		}
+		new := old
+		if old&mutexStarving == 0 {
+			new |= mutexLocked
+		}
+		if old&(mutexLocked|mutexStarving) != 0 {
+			new += 1 << mutexWaiterShift
+		}
+		if starving && old&mutexLocked != 0 {
+			new |= mutexStarving
+		}
+		if awoke {
+			if new&mutexWoken == 0 {
+				throw("sync: inconsistent mutex state")
+			}
+			new &^= mutexWoken
+		}
+		if atomic.CompareAndSwapInt32(&m.state, old, new) {
+			if old&(mutexLocked|mutexStarving) == 0 {
+			}
+			queueLifo := waitStartTime != 0
+			if waitStartTime == 0 {
+				waitStartTime = runtime_nanotime()
+			}
+			runtime_SemacquireMutex(&m.sema, queueLifo, 1)
+			starving = starving || runtime_nanotime()-waitStartTime > starvationThresholdNs
+			old = m.state
+			if old&mutexStarving != 0 {
+				if old&(mutexLocked|mutexWoken) != 0 || old>>mutexWaiterShift == 0 {
+					throw("sync: inconsistent mutex state")
+				}
+				delta := int32(mutexLocked - 1<<mutexWaiterShift)
+				if !starving || old>>mutexWaiterShift == 1 {
+					delta -= mutexStarving
+				}
+				atomic.AddInt32(&m.state, delta)
+				break
+			}
+			awoke = true
+			iter = 0
+		} else {
+			old = m.state
+		}
+	}
+
+	if race.Enabled {
+		race.Acquire(unsafe.Pointer(m))
+	}
+}
+
+func (m *Mutex) Unlock() {
+	if race.Enabled {
+		_ = m.state
+		race.Release(unsafe.Pointer(m))
+	}
+
+	new := atomic.AddInt32(&m.state, -mutexLocked)
+	if new != 0 {
+		m.unlockSlow(new)
+	}
+}
+
+func (m *Mutex) unlockSlow(new int32) {
+	if (new+mutexLocked)&mutexLocked == 0 {
+		throw("sync: unlock of unlocked mutex")
+	}
+	if new&mutexStarving == 0 {
+		old := new
+		for {
+			if old>>mutexWaiterShift == 0 || old&(mutexLocked|mutexWoken|mutexStarving) != 0 {
+				return
+			}
+			new = (old - 1<<mutexWaiterShift) | mutexWoken
+			if atomic.CompareAndSwapInt32(&m.state, old, new) {
+				runtime_Semrelease(&m.sema, false, 1)
+				return
+			}
+			old = m.state
+		}
+	} else {
+		runtime_Semrelease(&m.sema, true, 1)
+	}
+}
+```
+
+***
+
+## add mutex.Mutex (bf3dd3f0efe5b45947a991e22660c62d4ce6b671)
+```
+commit bf3dd3f0efe5b45947a991e22660c62d4ce6b671
+Author: Russ Cox <rsc@golang.org>
+Date:   Thu Dec 4 12:51:36 2008 -0800
+
+    add mutex.Mutex
+    
+    R=r
+    DELTA=349  (348 added, 0 deleted, 1 changed)
+    OCL=20380
+    CL=20472
+```
+
+*Thu Dec 4 2008*
+
+Russ Cox หนึ่งใน contributor หลักของ Go Project ได้ทำการ commit (bf3d) [3] ด้วยข้อความที่แสนเรียบง่ายว่า `add mutex.Mutex` และนี่คือจุดเริ่มต้นของ sync/mutex ของ Go\
+หากลองดู source code [4] ก็จะเห็นว่าเป็น Mutex เวอร์ชั่นที่เรียบง่าย นับเป็นบรรทัดโดยประมาณ 32 บรรทัด (ไม่รวม comment) [5]
+
+***
+
+source code: sync/mutex (Go bf3d)
+
+```go
+package sync
+
+package func cas(val *int32, old, new int32) bool
+
+export type Mutex struct {
+	key int32;
+	sema int32;
+}
+
+func xadd(val *int32, delta int32) (new int32) {
+	for {
+		v := *val;
+		if cas(val, v, v+delta) {
+			return v+delta;
+		}
+	}
+	panic("unreached")
+}
+
+func (m *Mutex) Lock() {
+	if xadd(&m.key, 1) == 1 {
+		return;
+	}
+	sys.semacquire(&m.sema);
+}
+
+func (m *Mutex) Unlock() {
+	if xadd(&m.key, -1) == 0 {
+		return;
+	}
+	sys.semrelease(&m.sema);
+}
+```
+
+***
+
+มาดูการทำงานของ Mutex ในแต่ละส่วน
+
+### Mutex struct
+```go
+export type Mutex struct {
+	key int32;
+	sema int32;
+}
+```
+- Mutex เป็น struct ที่มี method สองตัวชื่อ Lock() และ Unlock()
+- key บอกสถานะของ mutex ว่าล็อคอยู่หรือไม่ และเก็บจำนวน waiter
+- key > 0 แสดงว่า Mutex is locked
+- sema เก็บ state ที่ใช้กับฟังก์ชัน semaacquire และ semarelease
+
+> note:
+> * key และ sema เป็น int32 จึงทำให้สามารถติดลบได้
+> * Go ในตอนเริ่มแรกมี keyword ชื่อ export และ semicolon ด้วยเช่นกัน แต่หลังจาก Go1 ออกมาก็ไม่มีให้เห็นแล้ว
+
+
+ก่อนจะเข้าสู่ Lock และ Unlock มีฟังก์ชัน 4 ตัวที่น่าสนใจคือ cas, xadd, sys.semaacquire, sys.semarelease
+
+### cas
+```go
+package func cas(val *int32, old, new int32) bool
+```
+- cas หรือ compare-and-swap เป็น atomic instruction [6]
+- `func cas` ในนี้จะเป็น reference ไปยัง cas ที่ implement ด้วย assembly อีกที [7]
+- เพื่อให้เข้าใจวิธีการทำงานของ cas มากขึ้น ลองดูข้อความใน source code ที่ Russ Cox เขียนไว้
+    ```s
+    // bool cas(int32 *val, int32 old, int32 new)
+    // Atomically:
+    //	if(*val == old){
+    //		*val = new;
+    //		return 1;
+    //	}else
+    //		return 0;
+    TEXT cas(SB), 7, $0
+    ```
+- ตัวอย่าง 
+    ```go
+    x := 10
+    cas(&x, 10, 15)     // 10 == 10
+    fmt.Print(x)        // x = 15
+    cas(&x, 100, 1)     // 15 != 100
+    fmt.Print(x)        // x = 15
+    ```
+
+### xadd
+```go
+func xadd(val *int32, delta int32) (new int32) {
+	for {
+		v := *val;
+		if cas(val, v, v+delta) {
+			return v+delta;
+		}
+	}
+	panic("unreached")
+}
+```
+- xadd หรือ fetch-and-add [8]
+- เพิ่มค่า val ด้วยจำนวนที่กำหนด delta
+- เนื่องจาก cas อาจทำสำเร็จหรือไม่สำเร็จก็ได้ จึงวนลูปเพื่อการันตีว่าท้ายที่สุดแล้ว xadd จะเพิ่มค่าเข้าไปตามที่ผู้ใช้กำหนดได้สำเร็จ
+
+### semaphore
+- semaphore ในที่นี้อาจไม่ใช่ semaphore ตามนิยามของ Wiki โดยตรง [9] แต่เป็น semaphore ที่เอาไว้ใช้สำหรับจัดการ การ sleep และ wakeup ของ goroutine [10] คล้ายๆ Linux's Futex [11]
+- semaphore เริ่มต้น impement ด้วย linked-list และมีแนวโน้มว่าจะเปลี่ยนเป็น hash table of linked-list
+- `semaacquire(sema *int32)`: เข้าคิว sleep รอจนกว่า sema > 0 จากนั้นลดค่า sema ลง 1
+- `semrelease(sema *int32)`: เพิ่มค่า sema ขึ้น 1 และ wake goroutine ที่อยู่ในคิว
+
+
+หลังจากรู้จักฟังก์ชันที่น่าสนใจกันแล้วมาดู Lock และ Unlock ต่อ
+
+
+### Lock
+- เรียก xadd เพื่อ acquire lock โดยปรับค่าตัวแปร key ให้เพิ่มขึ้น 1
+- ถ้าไม่เกิด contention: key เปลี่ยนจาก 0 ไปเป็น 1  ก็สามารถ lock ได้เลย
+- ถ้าเกิด contention: (sleep) key มีค่ามากว่า 1  ก็จะเรียก sys.semacquire เพื่อให้ goroutine เข้าคิวรอ กล่าวคือ code จะรออยู่ที่บรรทัดนี้จนกว่าจะมี goroutine ตัวอื่นไปเรียก sys.semrelease
+
+### Unlock
+- เรียก xadd เช่นกัน แต่ส่ง -1 เพื่อปรับค่าตัวแปร key ให้มีค่าลดลง 1
+- ถ้าไม่เกิด contention: key เปลี่ยนจาก 1 ไปเป็น 0  ก็สามารถ unlock ได้เลย
+- ถ้าเกิด contention: (wake) key มีค่ามากว่า 1 แสดงว่ามี goroutine รออยู่ในคิวก็จะเรียก sys.semrelease เพื่อส่งสัญญาณไปยัง goroutine ที่รออยู่ในคิวให้ออกมาทำงานได้
+
+> note:\
+> ใน version นี้ไม่มีการป้องกัน Unlock Mutex ที่ยังไม่ได้ lock
+> จะเห็นว่าจะมีกรณีที่ key เป็น -1 ได้ แต่ทางทีมพัฒนาไม่ได้เผื่อกรณีนี้ไว้ในตอนแรก
+
+***
+
+## การเปลี่ยนแปลงของ Mutex จาก Go bf3d จนถึง Go1.17
+
+code ของ Mutex นั้นมีการเปลี่ยนแปลงอยู่ตลอด [12] [13] มีทั้งที่ทำโดยตรงกับ Mutex และส่วนที่เป็น low level แต่ส่งผลกระทบต่อ Mutex ด้วยเช่นกัน\
+แต่การเปลี่ยนแปลงครั้งใหญ่ที่มีผลต่อ code ของ Mutex โดยตรง จาก Go bf3d (add mutex.Mutex) จนถึง Go1.17 จะมีประมาณ 4 commit ด้วยกัน\
+และ 4 commit นี้สามารถแบ่งได้เป็น 2 ช่วงคือ ก่อน release Go1 และ หลัง release Go1
+
+ก่อน Go1:
+  1. "add mutex.Mutex" by Russ Cox [3] (bf3dd3f0efe5b45947a991e22660c62d4ce6b671)
+  2. "improve Mutex to allow successive acquisitions" by Dmitriy Vyukov [14] (dd2074c82acda9b50896bf29569ba290a0d13b03)
+
+หลัง Go1:
+  1. "sync: add active spinning to Mutex" by Dmitriy Vyukov [15] (edcad8639a902741dc49f77d000ed62b0cc6956f)
+  2. "sync: make Mutex more fair" by Dmitriy Vyukov [16] (0556e26273f704db73df9e7c4c3d2e8434dec7be)
+
+***
+
+## หลังจาก "add mutex.Mutex" จนถึงก่อน "improve Mutex to allow successive acquisitions"
+
+ในระหว่างทางจาก commit แรกของ Mutex (bf3d) จนถึง commit ก่อนที่จะทำให้เกิดการเปลี่ยนแปลงใหญ่ครั้งที่ 2 (6a18) [17]มีการเปลี่ยนแปลงเล็กน้อยเกิดขึ้นอยู่ตลอด\
+มีส่วนที่น่าสนใจดังนี้
+
+- delete export
+```diff
+-export type Mutex struct {
++type Mutex struct {
+```
+
+- เพิ่ม RWLock
+```diff
++type RWMutex struct {
++	m Mutex;
++}
+```
+
+- ย้าย directory จาก src/lib ไปเป็น src/pkg
+  
+- apply gofmt
+
+- ปรับปรุง comment
+
+- check Unlock of unlocked Mutex
+```diff
+-	if xadd(&m.key, -1) == 0 {
++	switch v := xadd(&m.key, -1); {
++	case v == 0:
+ 		// changed from 1 to 0; no contention
+ 		return
++	case int32(v) == -1:
++		// changed from 0 to -1: wasn't locked
++		// (or there are 4 billion goroutines waiting)
++		panic("sync: unlock of unlocked mutex")
+```
+
+- ใช้ sync/atomic แทน reference ไปยัง assembly
+```diff
+-	if xadd(&m.key, 1) == 1 {
++	if atomic.AddInt32(&m.key, 1) == 1 {
+```
+
+***
+
+source code: sync/mutex (Go 6a18)
+
+```go
+package sync
+
+import (
+	"runtime"
+	"sync/atomic"
+)
+
+type Mutex struct {
+	key  int32
+	sema uint32
+}
+
+type Locker interface {
+	Lock()
+	Unlock()
+}
+
+func (m *Mutex) Lock() {
+	if atomic.AddInt32(&m.key, 1) == 1 {
+		return
+	}
+	runtime.Semacquire(&m.sema)
+}
+
+func (m *Mutex) Unlock() {
+	switch v := atomic.AddInt32(&m.key, -1); {
+	case v == 0:
+		return
+	case v == -1:
+		panic("sync: unlock of unlocked mutex")
+	}
+	runtime.Semrelease(&m.sema)
+}
+```
+
+***
+
+## จบพาร์ทแรก
+
+* สิ่งที่ผู้อ่านน่าจะได้รู้จักเพิ่มเติม
+  * semaphore
+  * atomic insturction: compare-and-swap (cas), fetch-and-add (xadd)
+  * ความตั้งใจแรกของการ implement Mutex ของ Go นั้นคือการใช้ semaphore (queue) เพื่อให้เกิด fairness ใครมาก่อนก็ได้ Lock ก่อน
+  * Lock ไม่ได้ผูกอยู่กับ goroutine ตัวใดตัวหนึ่ง goroutine สามารถ acquire lock และสามารถโดน unlock โดย goroutine ไหนก็ได้\
+    (ตรงนี้มีประเด็นที่ทำให้ถกเถียงกันอยู่ในภายหลัง [18])
+* code ต่างๆ ที่เพิ่มขึ้นมานั้นทำไปเพื่อแก้ปัญหาที่พบเจอในภายหลัง หรือต้องการที่จะ improve บางอย่าง จากที่ดูเรียบง่ายก็ซับซ้อนขึ้นมา
+* ในส่วนของพาร์ทถัดไปจะกล่างถึง "improve Mutex to allow successive acquisitions"
+
+***
+
+## References
+- [1] [Mutex Go1.17](https://github.com/golang/go/blob/release-branch.go1.17/src/sync/mutex.go)
+- [2] [Mutex Go1.17 (no comment)](https://gist.github.com/lookharm/e5ac7aba9e15cc2e0ae38507cd57d7e3)
+- [3] [commit bf3d "add mutex.Mutex"](https://github.com/golang/go/commit/bf3dd3f0efe5b45947a991e22660c62d4ce6b671)
+- [4] [Mutex bf3d implementation](https://github.com/golang/go/blob/bf3dd3f0efe5b45947a991e22660c62d4ce6b671/src/lib/sync/mutex.go)
+- [5] [Mutex bf3d (no comment)](https://gist.github.com/lookharm/8158b978bd1dc1aac1802b60ddd5094b)
+- [6] [Compare-and-swap (Wiki)](https://en.wikipedia.org/wiki/Compare-and-swap)
+- [7] [Compare-and-swap bf3d implementation](https://github.com/golang/go/blob/bf3dd3f0efe5b45947a991e22660c62d4ce6b671/src/lib/sync/asm_amd64.s)
+- [8] [Fech-and-add: xadd (Wiki)](https://en.wikipedia.org/wiki/Fetch-and-add)
+- [9] [Semaphore (Wiki)](https://en.wikipedia.org/wiki/Semaphore_(programming))
+- [10] [Semaphore bf3d impementation](https://github.com/golang/go/blob/bf3dd3f0efe5b45947a991e22660c62d4ce6b671/src/runtime/sema.c)
+- [11] [Linux's Futex (Wiki)](https://en.wikipedia.org/wiki/Futex)
+- [12] [Mutex diff before release Go1](https://gist.github.com/lookharm/534c7587075881bd4cfc0674c84e0b76)
+- [13] [Mutex diff after release Go1](https://gist.github.com/lookharm/7f191c3a2e962217b9b3e1cc7312714a)
+- [14] [commit dd20 "sync: improve Mutex to allow successive acquisitions"](https://github.com/golang/go/commit/dd2074c82acda9b50896bf29569ba290a0d13b03)
+- [15] [commit edca "sync: add active spinning to Mutex"](https://github.com/golang/go/commit/edcad8639a902741dc49f77d000ed62b0cc6956f)
+- [16] [commit 0556 "sync: make Mutex more fair"](https://github.com/golang/go/commit/0556e26273f704db73df9e7c4c3d2e8434dec7be)
+- [17] [commit 6a18 "src/pkg: make package doc comments consistently start with "Package f…"](https://github.com/golang/go/commit/6a186d38d1c7e98487378991dba3085acbdb05c2)
+- [18] [proposal: sync: prohibit unlocking mutex in a different goroutine #9201](https://github.com/golang/go/issues/9201)
