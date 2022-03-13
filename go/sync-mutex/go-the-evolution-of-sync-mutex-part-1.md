@@ -228,10 +228,10 @@ export type Mutex struct {
 
 > note:
 > * key และ sema เป็น int32 จึงทำให้สามารถติดลบได้
-> * Go ในตอนเริ่มแรกมี keyword ชื่อ export และ semicolon ด้วยเช่นกัน แต่หลังจาก Go1 ออกมาก็ไม่มีให้เห็นแล้ว
+> * Go ในตอนเริ่มแรกมี keyword ชื่อ export และ semicolon ด้วยเช่นกัน แต่หลังจาก Go1 ก็ไม่มีให้เห็นแล้ว
 
 
-ก่อนจะเข้าสู่ Lock และ Unlock มีฟังก์ชัน 4 ตัวที่น่าสนใจคือ cas, xadd, sys.semaacquire, sys.semarelease
+ก่อนจะเข้าสู่ Lock และ Unlock มี 4 ฟังก์ชันที่น่าสนใจและจำเป็นต้องรู้ก่อนได้แก่ cas, xadd, sys.semaacquire, sys.semarelease
 
 ### cas
 ```go
@@ -405,11 +405,12 @@ func (m *Mutex) Unlock() {
 ## จบพาร์ทแรก
 
 * สิ่งที่ผู้อ่านน่าจะได้รู้จักเพิ่มเติม
-  * semaphore
+  * semaphore ในแบบของ Go
   * atomic insturction: compare-and-swap (cas), fetch-and-add (xadd)
-  * ความตั้งใจแรกของการ implement Mutex ของ Go นั้นคือการใช้ semaphore (queue) เพื่อให้เกิด fairness ใครมาก่อนก็ได้ Lock ก่อน
+  * ความตั้งใจแรกของการ implement Mutex ของ Go คือการใช้ semaphore (queue) เพื่อให้เกิด fairness ใครมาก่อนก็ได้ Lock ก่อน
   * Lock ไม่ได้ผูกอยู่กับ goroutine ตัวใดตัวหนึ่ง goroutine สามารถ acquire lock และสามารถโดน unlock โดย goroutine ไหนก็ได้\
     (ตรงนี้มีประเด็นที่ทำให้ถกเถียงกันอยู่ในภายหลัง [18])
+  * Mutex เป็นเพียงตัวแปร struct ตัวนึงเท่านั้น
 * code ต่างๆ ที่เพิ่มขึ้นมานั้นทำไปเพื่อแก้ปัญหาที่พบเจอในภายหลัง หรือต้องการที่จะ improve บางอย่าง จากที่ดูเรียบง่ายก็ซับซ้อนขึ้นมา
 * ในส่วนของพาร์ทถัดไปจะกล่างถึง "improve Mutex to allow successive acquisitions"
 
