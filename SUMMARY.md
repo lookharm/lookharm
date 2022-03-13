@@ -2,7 +2,6 @@
 
 * [🏴☠ 🏴☠ 🏴☠ Lookharm](README.md)
 * [BLOG](blog/README.md)
-  * [Go: sync/mutex implementation](blog/go-sync-mutex-implementation.md)
   * [Go: The evolution of sync/mutex [Part 1]](./blog/go-the-evolution-of-sync-mutex-part-1.md)
 
 ## Note
