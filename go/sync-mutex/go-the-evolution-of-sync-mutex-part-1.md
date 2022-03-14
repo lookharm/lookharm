@@ -2,11 +2,7 @@
 
 ℹ️ This article is based on Go 1.17.
 
-&nbsp;&nbsp;&nbsp;&nbsp;Mutex.Lock() และ Mutex.Unlock() การใช้งานที่เรียบง่าย\
-แต่ลองส่องดูซอร์สโค้ดใน sync/mutex ของ Go1.17 [1] ก็จะเห็นรายละเอียดที่ค่อนข้างมาก ประมาณ 135 บรรทัด [2] (ไม่รวมคอมเมนต์) \
-บทความนี้มาลองทำความเข้าใจ Mutex ใน Go\
-แต่หากจะเริ่มต้นที่ Go1.17 ในปี 2022 นี้ดูแล้วจะยากไป\
-ขอย้อนเวลากลับไปเมื่อประมาณ 14 ปีที่แล้วก่อนที่ Go1 จะถูกปล่อยออกมา
+&nbsp;&nbsp;&nbsp;&nbsp;Mutex.Lock() และ Mutex.Unlock() การใช้งานที่เรียบง่าย แต่ลองส่องดูซอร์สโค้ดใน sync/mutex ของ Go1.17 [1] ก็จะเห็นรายละเอียดที่ค่อนข้างมาก ประมาณ 135 บรรทัด [2] (ไม่รวมคอมเมนต์) บทความนี้มาลองทำความเข้าใจ Mutex ใน Go แต่หากจะเริ่มต้นที่ Go1.17 ในปี 2022 นี้ดูแล้วจะยากไป ขอย้อนเวลากลับไปเมื่อประมาณ 14 ปีที่แล้วก่อนที่ Go1 จะถูกปล่อยออกมา
 
 ***
 
@@ -172,13 +168,12 @@ Date:   Thu Dec 4 12:51:36 2008 -0800
 
 *Thu Dec 4 2008*
 
-&nbsp;&nbsp;&nbsp;&nbsp;Russ Cox หนึ่งในผู้พัฒนาหลักของ Go ได้ทำการ commit (bf3d) [3] ด้วยข้อความที่แสนเรียบง่ายว่า `add mutex.Mutex` และนี่คือจุดเริ่มต้นของ sync/mutex ของ Go\
-หากลองดูซอร์สโค้ด [4] ก็จะเห็นว่าเป็น Mutex เวอร์ชั่นที่เรียบง่าย นับเป็นบรรทัดโดยประมาณ 32 บรรทัด (ไม่รวมคอมเมนต์) [5]
+&nbsp;&nbsp;&nbsp;&nbsp;Russ Cox หนึ่งในผู้พัฒนาหลักของ Go ได้ทำการ commit [3] ด้วยข้อความที่แสนเรียบง่ายว่า `add mutex.Mutex` และนี่คือจุดเริ่มต้นของ sync/mutex ของ Go หากลองดูซอร์สโค้ด [4] ก็จะเห็นว่าเป็น Mutex เวอร์ชั่นที่เรียบง่าย นับเป็นบรรทัดโดยประมาณ 32 บรรทัด (ไม่รวมคอมเมนต์) [5]
 
 ***
 
 <details>
-	<summary>ซอร์สโค้ด: sync/mutex (Go bf3d)</summary>
+	<summary>ซอร์สโค้ด: sync/mutex (commit bf3d)</summary>
 
 ```go
 package sync
@@ -238,15 +233,15 @@ export type Mutex struct {
 > * Go ในตอนเริ่มแรกมีคีเวิร์ดชื่อ `export` และเซมิโคลอนด้วยเช่นกัน แต่หลังจาก Go1 ก็ไม่มีให้เห็นแล้ว
 
 
-ก่อนจะเข้าสู่ Lock และ Unlock มี 4 ฟังก์ชันที่น่าสนใจและจำเป็นต้องรู้ก่อนได้แก่ cas, xadd, sys.semaacquire, sys.semarelease
+ก่อนจะเข้าสู่ฟังก์ชัน Lock และ Unlock มี 4 ฟังก์ชันที่น่าสนใจและจำเป็นต้องรู้ก่อนได้แก่ cas, xadd, semaacquire และ semarelease
 
 ### cas
 ```go
 package func cas(val *int32, old, new int32) bool
 ```
 - cas หรือ compare-and-swap เป็น atomic instruction [6]
-- `func cas` ในนี้จะเป็นตัวอ้างอิงไปยัง cas ที่ implement ด้วย assembly อีกที [7]
-- เพื่อให้เข้าใจวิธีการทำงานของ cas มากขึ้น ลองดูข้อความในซอร์สโค้ด ที่ Russ Cox เขียนไว้
+- `func cas` ในที่นี้จะเป็นตัวอ้างอิงไปยัง cas ที่ implement ด้วย assembly อีกที [7]
+- เพื่อให้เข้าใจวิธีการทำงานของ cas มากขึ้น ลองดูคอมเมนต์ในซอร์สโค้ด ที่ Russ Cox เขียนไว้
     ```s
     // bool cas(int32 *val, int32 old, int32 new)
     // Atomically:
@@ -279,28 +274,28 @@ func xadd(val *int32, delta int32) (new int32) {
 }
 ```
 - xadd หรือ fetch-and-add [8]
-- เพิ่มค่า val ด้วยจำนวนที่กำหนด delta
-- เนื่องจาก cas อาจทำสำเร็จหรือไม่สำเร็จก็ได้ จึงวนลูปเพื่อการันตีว่าท้ายที่สุดแล้ว xadd จะเพิ่มค่าเข้าไปตามที่ผู้ใช้กำหนดได้สำเร็จ
+- เปลี่ยนแปลงค่า val ด้วยจำนวน delta ที่กำหนด
+- เนื่องจาก cas อาจทำสำเร็จหรือไม่สำเร็จก็ได้ เพราะมีหลายๆ โกรูทีน (goroutine) ที่แย่งกันเรียกใช้ cas จึงต้องวนลูปเพื่อการันตีว่าท้ายที่สุดแล้ว xadd จะเพิ่มค่าเข้าไปตามที่ผู้ใช้กำหนดได้สำเร็จ
 
 ### semaphore
-- semaphore ในที่นี้อาจไม่ใช่ semaphore ตามนิยามของ Wiki โดยตรง [9] แต่เป็น semaphore ที่เอาไว้ใช้สำหรับจัดการ การ sleep และ wakeup ของ goroutine [10] คล้ายๆ Linux's Futex [11]
-- semaphore เริ่มต้น impement ด้วย linked-list และมีแนวโน้มว่าจะเปลี่ยนเป็น hash table of linked-list
-- `semaacquire(sema *int32)`: เข้าคิว sleep รอจนกว่า sema > 0 จากนั้นลดค่า sema ลง 1
-- `semrelease(sema *int32)`: เพิ่มค่า sema ขึ้น 1 และ wake goroutine ที่อยู่ในคิว
+- semaphore ในที่นี้อาจไม่ใช่ semaphore ตามนิยามของ Wiki โดยตรง [9] แต่เป็น semaphore ที่เอาไว้ใช้สำหรับจัดการ การ sleep และ wakeup ของโกรูทีน [10] คล้ายๆ Linux's Futex [11]
+- semaphore ในตอนเริ่มแรกใช้ linked-list และมีแนวโน้มว่าจะเปลี่ยนเป็น hash table of linked-list
+- `semaacquire(sema *int32)`: เข้าคิว (queue) sleep รอจนกว่า sema > 0 จากนั้นลดค่า sema ลง 1
+- `semrelease(sema *int32)`: เพิ่มค่า sema ขึ้น 1 และ wake โกรูทีนที่อยู่ในคิว
 
 
-หลังจากรู้จักฟังก์ชันที่น่าสนใจกันแล้วมาดู Lock และ Unlock ต่อ
+หลังจากรู้จักฟังก์ชันที่น่าสนใจกันไปแล้วมาดูฟังก์ชัน Lock และ Unlock ต่อ
 
 
 ### Lock
 - เรียก xadd เพื่อพยายามล็อค โดยปรับค่าตัวแปร key ให้เพิ่มขึ้น 1
 - ถ้าไม่เกิด contention: key เปลี่ยนจาก 0 ไปเป็น 1  ก็สามารถล็อค (lock) ได้เลย
-- ถ้าเกิด contention: (sleep) key มีค่ามากว่า 1  ก็จะเรียก sys.semacquire เพื่อให้ goroutine เข้าคิวรอ กล่าวคือ code จะรออยู่ที่บรรทัดนี้จนกว่าจะมี goroutine ตัวอื่นไปเรียก sys.semrelease
+- ถ้าเกิด contention: (sleep) key มีค่ามากว่า 1  ก็จะเรียก sys.semacquire เพื่อให้โกรูทีนเข้าคิวรอ กล่าวคือ code จะรออยู่ที่บรรทัดนี้จนกว่าจะมีโกรูทีนตัวอื่นไปเรียก sys.semrelease
 
 ### Unlock
 - เรียก xadd เช่นกัน แต่ส่ง -1 เพื่อปรับค่าตัวแปร key ให้มีค่าลดลง 1
 - ถ้าไม่เกิด contention: key เปลี่ยนจาก 1 ไปเป็น 0  ก็สามารถปลดล็อค (unlock) ได้เลย
-- ถ้าเกิด contention: (wake) key มีค่ามากว่า 1 แสดงว่ามี goroutine รออยู่ในคิวก็จะเรียก sys.semrelease เพื่อส่งสัญญาณไปยัง goroutine ที่รออยู่ในคิวให้ออกมาทำงานได้
+- ถ้าเกิด contention: (wake) key มีค่ามากว่า 1 แสดงว่ามีโกรูทีนรออยู่ในคิวก็จะเรียก sys.semrelease เพื่อส่งสัญญาณไปยัง โกรูทีนที่รออยู่ในคิวให้ออกมาทำงานได้
 
 > note:\
 > ใน version นี้ไม่มีการป้องกัน Unlock Mutex ที่ยังไม่ได้ล็อค
@@ -308,11 +303,9 @@ func xadd(val *int32, delta int32) (new int32) {
 
 ***
 
-## การเปลี่ยนแปลงของ Mutex จาก Go bf3d จนถึง Go1.17
+## การเปลี่ยนแปลงของ Mutex จาก commit bf3d จนถึง Go1.17
 
-โค้ดของ Mutex นั้นมีการเปลี่ยนแปลงอยู่ตลอด [12] [13] มีทั้งที่ทำโดยตรงกับ Mutex และส่วนที่เป็น low level แต่ส่งผลกระทบต่อ Mutex ด้วยเช่นกัน\
-แต่การเปลี่ยนแปลงครั้งใหญ่ที่มีผลต่อ code ของ Mutex โดยตรงจาก Go bf3d (add mutex.Mutex) จนถึง Go1.17 จะมีประมาณ 4 commit ด้วยกัน\
-และ 4 commit นี้สามารถแบ่งได้เป็น 2 ช่วงคือ ก่อนปล่อย Go1 และ หลังปล่อย Go1
+&nbsp;&nbsp;&nbsp;&nbsp;โค้ดของ Mutex นั้นมีการเปลี่ยนแปลงอยู่ตลอด [12] [13] มีทั้งที่ทำโดยตรงกับ Mutex และส่วนที่เป็น low level แต่ส่งผลกระทบต่อ Mutex แต่การเปลี่ยนแปลงครั้งใหญ่ที่มีผลต่อโค้ดของ Mutex โดยตรงหากนับจาก commit bf3d (add mutex.Mutex) จนถึง Go1.17 จะมีประมาณ 4 commit ด้วยกันซึ่งสามารถแบ่งได้เป็น 2 ช่วงคือ ก่อนปล่อย Go1 และ หลังปล่อย Go1
 
 ก่อน Go1:
   1. "add mutex.Mutex" by Russ Cox [3] (bf3dd3f0efe5b45947a991e22660c62d4ce6b671)
@@ -326,8 +319,7 @@ func xadd(val *int32, delta int32) (new int32) {
 
 ## หลังจาก "add mutex.Mutex" จนถึงก่อน "improve Mutex to allow successive acquisitions"
 
-&nbsp;&nbsp;&nbsp;&nbsp;ในระหว่างทางจาก commit แรกของ Mutex (bf3d) จนถึง commit ก่อนที่จะทำให้เกิดการเปลี่ยนแปลงใหญ่ครั้งที่ 2 (6a18) [17]มีการเปลี่ยนแปลงเล็กน้อยเกิดขึ้นอยู่ตลอด\
-มีส่วนที่น่าสนใจดังนี้
+&nbsp;&nbsp;&nbsp;&nbsp;ในระหว่างทางจาก commit แรกของ Mutex (bf3d) จนถึง commit ก่อนที่จะทำให้เกิดการเปลี่ยนแปลงใหญ่ครั้งที่ 2 (6a18) [17] มีการเปลี่ยนแปลงเล็กน้อยเกิดขึ้นอยู่ตลอด มีส่วนที่น่าสนใจดังนี้
 
 - ลบคีเวิร์ด export
 ```diff
@@ -342,9 +334,9 @@ func xadd(val *int32, delta int32) (new int32) {
 +}
 ```
 
-- ย้าย directory จาก src/lib ไปเป็น src/pkg
+- ย้ายไดเร็กทอรีจาก src/lib ไปเป็น src/pkg
   
-- ปรับฟอร์แหม็ทของโค้ดโดย gofmt
+- ปรับฟอร์แหม็ทของโค้ดด้วย gofmt
 
 - ปรับปรุงคอมเมนต์
 
@@ -361,7 +353,7 @@ func xadd(val *int32, delta int32) (new int32) {
 +		panic("sync: unlock of unlocked mutex")
 ```
 
-- ใช้ sync/atomic
+- ใช้ sync/atomic แทน xadd
 ```diff
 -	if xadd(&m.key, 1) == 1 {
 +	if atomic.AddInt32(&m.key, 1) == 1 {
@@ -370,7 +362,7 @@ func xadd(val *int32, delta int32) (new int32) {
 ***
 
 <details>
-	<summary>ซอร์สโค้ด: sync/mutex (Go 6a18)</summary>
+	<summary>ซอร์สโค้ด: sync/mutex (commit 6a18)</summary>
 
 ```go
 package sync
@@ -417,11 +409,11 @@ func (m *Mutex) Unlock() {
 * สิ่งที่ผู้อ่านน่าจะได้รู้จักเพิ่มเติม
   * semaphore ในแบบของ Go
   * atomic insturction: compare-and-swap (cas), fetch-and-add (xadd)
-  * ความตั้งใจแรกของการ implement Mutex ของ Go คือการใช้ semaphore (queue) เพื่อให้เกิด fairness ใครมาก่อนก็ได้ Lock ก่อน
-  * Lock ไม่ได้ผูกอยู่กับ goroutine ตัวใดตัวหนึ่ง goroutine สามารถ acquire lock และสามารถโดน unlock โดย goroutine ไหนก็ได้\
+  * ความตั้งใจแรกของการ implement Mutex ของ Go คือการใช้ semaphore (คิว) เพื่อให้เกิด fairness ใครมาก่อนก็ได้ Lock ก่อน
+  * Lock ไม่ได้ผูกอยู่กับโกรูทีนตัวใดตัวหนึ่ง Mutex โดนล็อคโดยโกรูทีนตัวใดตัวหนึ่งและโดนปลดล็อคโดยโกรูทีนไหนก็ได้\
     (ตรงนี้มีประเด็นที่ทำให้ถกเถียงกันอยู่ในภายหลัง [18])
   * Mutex เป็นเพียงตัวแปร struct ตัวนึงเท่านั้น
-* code ต่างๆ ที่เพิ่มขึ้นมานั้นทำไปเพื่อแก้ปัญหาที่พบเจอในภายหลัง หรือต้องการที่จะ improve บางอย่าง จากที่ดูเรียบง่ายก็ซับซ้อนขึ้นมา
+* โค้ดที่เพิ่มขึ้นมาในภายหลังทำไปเพื่อแก้ปัญหาที่พบเจอหรือเพิ่มประสิทธิภาพการทำงาน จากที่ดูเรียบง่ายก็ซับซ้อนขึ้นมา
 * ในส่วนของพาร์ทถัดไปจะกล่างถึง "improve Mutex to allow successive acquisitions"
 
 ***
