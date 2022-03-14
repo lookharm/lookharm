@@ -10,7 +10,8 @@ Mutex.Lock() และ Mutex.Unlock() การใช้งานที่เร
 
 ***
 
-ซอร์สโค้ด: sync/mutex (Go1.17)
+<details>
+	<summary>ซอร์สโค้ด: sync/mutex (Go1.17)</summary>
 
 ```go
 package sync
@@ -150,7 +151,10 @@ func (m *Mutex) unlockSlow(new int32) {
 }
 ```
 
+</details>
+
 ***
+
 
 ## add mutex.Mutex (bf3d)
 ```
@@ -173,7 +177,8 @@ Russ Cox หนึ่งในผู้พัฒนาหลักของ Go �
 
 ***
 
-ซอร์สโค้ด: sync/mutex (Go bf3d)
+<details>
+	<summary>ซอร์สโค้ด: sync/mutex (Go bf3d)</summary>
 
 ```go
 package sync
@@ -209,6 +214,8 @@ func (m *Mutex) Unlock() {
 	sys.semrelease(&m.sema);
 }
 ```
+
+</details>
 
 ***
 
@@ -362,7 +369,8 @@ func xadd(val *int32, delta int32) (new int32) {
 
 ***
 
-ซอร์สโค้ด: sync/mutex (Go 6a18)
+<details>
+	<summary>ซอร์สโค้ด: sync/mutex (Go 6a18)</summary>
 
 ```go
 package sync
@@ -399,6 +407,8 @@ func (m *Mutex) Unlock() {
 	runtime.Semrelease(&m.sema)
 }
 ```
+
+</details>
 
 ***
 
