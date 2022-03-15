@@ -1,4 +1,4 @@
-# Golang: Go Module
+# Go: Module
 
 ## How to use "go get" with a private repository
 

@@ -1,4 +1,4 @@
-# Golang: Interface
+# Go: Interface
 
 ## Interface
 
