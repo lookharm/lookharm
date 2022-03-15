@@ -12,8 +12,8 @@
 ## Embedding Interfaces in Go
 
 * 2 ways to implement Interface
-  * 1\. Write down all methods in an interface.
-  * 2\. Embedding Interfaces.
+  * 1\. Write down all methods that specify in an interface.
+  * 2\. Embedding Interface.
 * Embedding Interfaces
   * Interface is a set of methods.
   *   Let's see if we embedded struct in another struct:
@@ -46,7 +46,7 @@
     * But F1() doesn't point to any function because we don't actually implement F1() or write down any description of this function, if we call F1() it will panic at run-time.
 * Use-case:
   * unit-test:
-    *   We don't want to implement all method that we don't like to test. So we can implement the interface like this:
+    *   We don't want to implement all methods that we don't like to test. So we can implement the interface like this:
 
         ```go
         type User struct {
@@ -79,6 +79,6 @@
         }
         ```
 
-        * We want to test only GetUsers() so we just implement only GetUsers()
+        * We want to test only a _GetUsers_ so we just implement only a _GetUsers_.
 * Further reading:
   * [Golang By Example, Embedding Interfaces in Go](https://golangbyexample.com/embedding-interfaces-go)
