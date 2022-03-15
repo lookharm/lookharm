@@ -1,6 +1,6 @@
 # Table of contents
 
-* [🏴☠ 🏴☠ Lookharm](README.md)
+* [🏴☠ 🏴☠ 🏴☠ Lookharm](README.md)
 
 ## Go
 
