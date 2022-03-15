@@ -4,7 +4,7 @@ description: '#clean-code #solid #design-pattern'
 
 # SOLID: Liskov Substitution Principle
 
-**2022-02-15**&#x20;
+**2022-02-15**
 
 LSP ในความเข้าใจของข้าพเจ้า
 
@@ -24,7 +24,7 @@ LSP ในความเข้าใจของข้าพเจ้า
 
 [Design Principles and Design Patterns - Robert C. Martin](http://staff.cs.utu.fi/\~jounsmed/doos\_06/material/DesignPrinciplesAndPatterns.pdf)
 
-เริ่มกันที่ต้นฉบับเลยก็แล้วกัน  Rober C. Martin อาจไม่ใช่คนแรกที่พูดถึง Liskov Substitution แต่น่าเป็นคนแรกๆ ที่พูดเรื่อง SOLID
+เริ่มกันที่ต้นฉบับเลยก็แล้วกัน Rober C. Martin อาจไม่ใช่คนแรกที่พูดถึง Liskov Substitution แต่เป็นคนแรกๆ ที่พูดเรื่อง SOLID
 
 #### การให้ความหมาย
 
@@ -59,7 +59,9 @@ LSP ในความเข้าใจของข้าพเจ้า
 
 ### Digital Ocean
 
-[Digital Ocean](https://www.digitalocean.com/community/conceptual\_articles/s-o-l-i-d-the-first-five-principles-of-object-oriented-design#interface-segregation-principle) ถ้า search SOLID principle ก็จะเจอเว็บนี้เป็นเว็บ แรกๆ
+[Digital Ocean](https://www.digitalocean.com/community/conceptual\_articles/s-o-l-i-d-the-first-five-principles-of-object-oriented-design#interface-segregation-principle)&#x20;
+
+ถ้าลองค้นหาคำว่า SOLID principle ในกูเกิ้ลก็จะเจอเว็บนี้เป็นเว็บแรกๆ
 
 #### การให้ความหมาย
 
@@ -166,7 +168,7 @@ LSP ในความเข้าใจของข้าพเจ้า
 
 #### ถ้าทำตามจะได้อะไร
 
-* Eaiser Maintenance:
+* Easรer Maintenance:
   * > \[opinion] ไม่ต้องคอยจำว่า subtype ตัวไหนทำอะไรได้ ทำอะไรไม่ได้เพราะ likely to cause bugs.
 * Code Reusability:
   * > \[opinion] ฝั่งเรียกใช้งานที่ประกาศรับ supertype สามารถเอา subtype ไปใช้ได้เลย โดยไม่ต้องกลัวความผิดพลาด
@@ -234,14 +236,14 @@ LSP ในความเข้าใจของข้าพเจ้า
 พอเริ่มเข้าใจก็ขี้เกียจอ่านต่อ แปะไว้ละกัน
 
 * [Baeldung](https://www.baeldung.com/java-liskov-substitution-principle)
-  * Describes from Open-Closed Principle to Liscov Substitution Principle.
+  * Describes from Open-Closed Principle to Liskov Substitution Principle.
   * Describes why breaking LSP will break OCP in consequence.
   * Describes code-smell.
 * [alpharithms](https://www.alpharithms.com/liskov-substitution-principle-lsp-solid-114908)
   * Don't know what they tell.
 * [s8sg](https://s8sg.medium.com/solid-principle-in-go-e1a624290346)
-  * Describes with examples in Golang.
+  * Describes with examples in Go.
 * [levelup](https://levelup.gitconnected.com/practical-solid-in-golang-liskov-substitution-principle-e0d2eb9dd39)
-  * Another example in Golang.
+  * Other Go examples.
 * [solid-development-principles-in-motivational-pictures](http://web.archive.org/web/20160521015258/https://lostechies.com/derickbailey/2009/02/11/solid-development-principles-in-motivational-pictures)
-  * Meme.
+  * Memes.
